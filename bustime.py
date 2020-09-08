@@ -24,7 +24,7 @@ import json
 
 # ponts Buiksloterweg, Distelweg, NDSM
 halts = [ "02133", "02114", "09906", "09901", "09902" ]
-#halts = [  "09902" ]
+halts = [  "09906", "09901", "09902" ]
 
 trips = {}
 
@@ -45,6 +45,10 @@ def on_message(ws, message):
 	try:
 		print(halt, "=", json.dumps(j, indent=4, sort_keys=True), file=logfile)
 		dest = j["journey"]["destination"]
+		if dest == "Centraal Station":
+			dest = "CS"
+		elif dest == "Station Sloterdijk":
+			dest = "Sloterdijk"
 		line = j["journey"]["publicLineNumber"]
 		#if line != "18":
 			#return
@@ -78,10 +82,9 @@ def on_message(ws, message):
 		delay_str = "%+3d:%02d" % (delay / 60, abs(delay) % 60)
 
 		#print(json.dumps(j, indent=4, sort_keys=True))
-		print("%s: %s %s: %s%s %s -> %s (%s %d stops away)" % (
+		print("%s: %-8s: %s%s %s -> %s (%s %d stops away)" % (
 			num,
-			vehicle,
-			line,
+			vehicle + " " + line,
 			depart,
 			delay_str,
 			halt,
