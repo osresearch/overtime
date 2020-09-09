@@ -24,7 +24,7 @@ import json
 
 # ponts Buiksloterweg, Distelweg, NDSM
 halts = [ "02133", "02114", "09906", "09901", "09902" ]
-halts = [  "09906", "09901", "09902" ]
+#halts = [  "09906", "09901", "09902" ]
 
 trips = {}
 
@@ -67,22 +67,31 @@ def on_message(ws, message):
 		halt = call["stopName"]
 		status = call["status"]
 
-		if status == "Unknown" or status == "Passed":
-			# this trip is no longer interesting
-			if trip_id not in trips:
-				#print("%s: %s" % (trip_id, status))
-				return
-			print("%s: DEPARTED" % (num))
-			del trips[trip_id]
-			return
-
-		trips[trip_id] = call
-
 		# format the delay into +/-mm:ss
 		delay_str = "%+3d:%02d" % (delay / 60, abs(delay) % 60)
+		call["stopsAway"] = call["callOrder"] - lastcall["callOrder"]
+
+		if status == "Unknown":
+			status = "Passed"
+		if status == "Upcoming" and call["stopsAway"] != 0:
+			status = "%d stops away" % (call["stopsAway"])
+
+		if trip_id in trips:
+			# skip printing if nothing has changed
+			old_call = trips[trip_id]
+
+			if  old_call is not None \
+			and old_call["delay"] == call["delay"] \
+			and old_call["status"] == call["status"] \
+			and old_call["stopsAway"] == call["stopsAway"] \
+			and True:
+				return
+		elif status == "Passed":
+			# never heard of this one, and it is already gone...
+			return
 
 		#print(json.dumps(j, indent=4, sort_keys=True))
-		print("%s: %-8s: %s%s %s -> %s (%s %d stops away)" % (
+		print("%s: %-8s: %s%s %s -> %s (%s)" % (
 			num,
 			vehicle + " " + line,
 			depart,
@@ -90,10 +99,15 @@ def on_message(ws, message):
 			halt,
 			dest,
 			status,
-			call["callOrder"] - lastcall["callOrder"]
 		))
+
+		if status != "Passed":
+			trips[trip_id] = call
+		elif trip_id in trips:
+			del trips[trip_id]
+
 	except Exception as e:
-		print(str(e))
+		print(e)
 		print("FAIL:", json.dumps(j, indent=4, sort_keys=True))
 		return
 
