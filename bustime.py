@@ -18,6 +18,9 @@
 #   status: "Upcoming", "Arrived" & "Passed" for buses, "Unknown" for ferries
 import websocket
 import json
+import gvbparser
+import logging
+logging.basicConfig(filename='debug.log',level=logging.DEBUG)
 
 # haarlemmerplein
 #halts = [ "02133", "02114" ]
@@ -31,86 +34,7 @@ trips = {}
 logfile = open("bustime.log", "a")
 
 def on_message(ws, message):
-	try:
-		#print(message, file=logfile)
-		(t,halt,jsmsg) = json.loads(message)
-		if t != 8:
-			print("ID", t, "?", message)
-			return
-		j = json.loads(jsmsg)
-	except:
-		print("FAIL:", message)
-		return
-
-	try:
-		print(halt, "=", json.dumps(j, indent=4, sort_keys=True), file=logfile)
-		dest = j["journey"]["destination"]
-		if dest == "Centraal Station":
-			dest = "CS"
-		elif dest == "Station Sloterdijk":
-			dest = "Sloterdijk"
-		line = j["journey"]["publicLineNumber"]
-		#if line != "18":
-			#return
-		vehicle = j["journey"]["vehicletype"]
-		trip = j["trip"]
-		num = trip["number"]
-		trip_id = trip["id"]
-		lastcall = trip["lastCallMade"]
-		call = j["calls"][0]
-		delay = call["delay"]
-		if delay is None:
-			delay = 0
-		depart = call["liveDepartureAt"]
-		if depart is None:
-			depart = call["plannedDepartureAt"] + "(?)"
-		halt = call["stopName"]
-		status = call["status"]
-
-		# format the delay into +/-mm:ss
-		delay_str = "%+3d:%02d" % (delay / 60, abs(delay) % 60)
-		call["stopsAway"] = call["callOrder"] - lastcall["callOrder"]
-
-		if status == "Unknown":
-			status = "Passed"
-		if status == "Upcoming" and call["stopsAway"] != 0:
-			status = "%d stops away" % (call["stopsAway"])
-
-		if trip_id in trips:
-			# skip printing if nothing has changed
-			old_call = trips[trip_id]
-
-			if  old_call is not None \
-			and old_call["delay"] == call["delay"] \
-			and old_call["status"] == call["status"] \
-			and old_call["stopsAway"] == call["stopsAway"] \
-			and True:
-				return
-		elif status == "Passed":
-			# never heard of this one, and it is already gone...
-			return
-
-		#print(json.dumps(j, indent=4, sort_keys=True))
-		print("%s: %-8s: %s%s %s -> %s (%s)" % (
-			num,
-			vehicle + " " + line,
-			depart,
-			delay_str,
-			halt,
-			dest,
-			status,
-		))
-
-		if status != "Passed":
-			trips[trip_id] = call
-		elif trip_id in trips:
-			del trips[trip_id]
-
-	except Exception as e:
-		print(e)
-		print("FAIL:", json.dumps(j, indent=4, sort_keys=True))
-		return
-
+	gvbparser.parse(message)
 def on_error(ws, error):
 	print(error)
 def on_close(ws):
