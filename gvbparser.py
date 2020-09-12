@@ -27,8 +27,6 @@ halts = [ "02133", "02114", "09906", "09901", "09902" ]
 trips = {}
 
 import json
-import logging
-LOGGER = logging.getLogger(__name__)
 
 def parse(message):
 	try:
@@ -42,7 +40,7 @@ def parse(message):
 		return
 
 	try:
-		LOGGER.debug(halt+ "="+ json.dumps(j, indent=4, sort_keys=True))
+		if __debug__: print(halt+ "="+ json.dumps(j, indent=4, sort_keys=True))
 		dest = j["journey"]["destination"]
 		if dest == "Centraal Station":
 			dest = "CS"
