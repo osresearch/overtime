@@ -4,16 +4,11 @@
 #include <ArduinoJson.h>
 #include "time.h"
 #include "GVB.h"
+#include "config.h"
 
 // GVB websocket address
 static const char ws_url[] = "wss://maps-wss.gvb.nl";
-static const char *ws_queries[] = {
-	"[5,\"/stops/02113\"]", // haarlemmerplein
-	"[5,\"/stops/02114\"]", // haarlemmerplein
-	"[5,\"/stops/09906\"]", // buiksloterweg
-	"[5,\"/stops/09901\"]", // distelweg
-	"[5,\"/stops/09902\"]", // ndsm
-};
+static const char * const ws_queries[] = { GVB_HALTS };
 static const int ws_num_queries = sizeof(ws_queries)/sizeof(*ws_queries);
 
 
@@ -141,7 +136,7 @@ int gvb_parse(String payload)
 
 	// see response.txt for sample object
 	//JsonObject journey = doc["journey"];
-	const char * line_number = doc["journey"]["lineNumber"];
+	const char * line_number = doc["journey"]["publicLineNumber"];
 	const char * destination = doc["journey"]["destination"];
 	const char * vehicle = doc["journey"]["vehicletype"];
 
@@ -167,6 +162,8 @@ int gvb_parse(String payload)
 		departure_time = "N/A";
 
 	const char * status = departure["status"];
+	if (strcmp(status, "Unknown") == 0)
+		status = "Passed";
 
 	struct tm tm = {};
 /*
@@ -180,13 +177,13 @@ int gvb_parse(String payload)
 	time_t at = mktime(&tm);
 	int delta = at - last_update_sec;
 
-	printf("%4d %8s %s %+4d: %-3s %c %s %d %d\r\n",
+	printf("%4d %8s %s %+4d: %s %-3s %s %d %d\r\n",
 		trip_id,
 		status,
 		departure_time,
 		delay_sec,
+		vehicle,
 		line_number,
-		vehicle[0],
 		destination,
 		delta,
 		at
@@ -194,7 +191,6 @@ int gvb_parse(String payload)
 
 	if (departure_time[0] == 'N'
 	|| delta < 0
-	|| strcmp(status, "Unknown") == 0
 	) {
 		// we can't parse a nonexistant time
 		// or this was way in the past
@@ -208,8 +204,11 @@ int gvb_parse(String payload)
 	train_t * t = train_find(trip_id);
 	if (t)
 	{
+		// this train already exists in the list;
+		// remove it from the list so that we can resort it
 		train_remove(t);
 	} else {
+		// new train! do we care?
 		if (status[0] == 'P')
 		{
 			// "Passed": we have never heard of this train,
@@ -269,10 +268,15 @@ void ws_message(WebsocketsMessage message)
 		return;
 	subscribed = 1;
 
+	char query[32];
 	for(int i = 0 ; i < ws_num_queries ; i++)
 	{
-		Serial.println(ws_queries[i]);
-		ws.send(ws_queries[i]);
+		snprintf(query, sizeof(query),
+			"[5,\"/stops/%s\"]",
+			ws_queries[i]
+		);
+		Serial.println(query);
+		ws.send(query);
 	}
 }
 

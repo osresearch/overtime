@@ -13,6 +13,8 @@ struct train_t {
 	char line_number[5];
 	char destination[32];
 	char departure_time[16];
+	int last_row; // for tracking display updates
+	int last_delta;
 };
 
 extern train_t * train_list;

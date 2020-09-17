@@ -7,6 +7,7 @@
 #include "Adafruit_EPD.h" // 2.5.3
 #include "Adafruit_GFX.h" // 1.10.1
 #include "GVB.h"
+#include "config.h"
 
 //#include <Fonts/FreeMonoBold18pt7b.h>
 //#include <Fonts/FreeSans12pt7b.h>
@@ -35,8 +36,6 @@ extern const char Lato_Bold_21[];
 using namespace websockets;
 WebsocketsClient ws;
 
-#define WIFI_SSID "xyzzy"
-#define WIFI_PASSWORD "PASSWORD"
 #define TZ_OFFSET (1 * 3600)
 
 // query parameters
@@ -372,13 +371,15 @@ static const uint8_t icon_ferry[] = {
 0x1f, 0xff, 0xf8, 0x0e, 0x7e, 0x70, 0x0c, 0x3c, 0x30, 0x00, 0x00, 0x00, 0x03, 0xc3, 0xc0, 0x3f, 
 0xff, 0xfc, 0x3e, 0x7e, 0x7c, 0x00, 0x00, 0x00, };
 
-static void draw_train(const train_t * t, int row)
+static int draw_train(train_t * t, int row)
 {
 	if (row >= 3)
-		return;
+		return 0;
 
 	const time_t now = time(NULL) + TZ_OFFSET;
 	const int delta = t->departure - now;
+	const int delta_min = delta / 60;
+	const int delta_sec = delta % 60;
 
 	char buf[64];
 	const int width = 83;
@@ -386,19 +387,25 @@ static void draw_train(const train_t * t, int row)
 	display.setRotation(0);
 
 	if (row > 0)
-		display.drawFastVLine(width*row + 2, 10, 122-10*2, COLOR1);
+		display.drawFastVLine(width*row + 4, 0, 122, COLOR1);
 
-	display.setCursor(width*row, 110);
 	display.setFont(&DinFont60pt7b);
 	if (delta < 0) {
-		display.print(" -");
+		buf[0] = '-';
+		buf[1] = '\0';
 	} else {
 		snprintf(buf, sizeof(buf),
 			"%2d",
-			delta / 60
+			delta_min
 		);
-		display.print(buf);
 	}
+
+	int16_t x1, y1;
+	uint16_t w, h;
+	display.getTextBounds(buf, 0, 0, &x1, &y1, &w, &h);
+	display.setCursor(width*(row+1) - w - 12, 114);
+	display.print(buf);
+	//printf("'%s' = %d\n", buf, w);
 
 /*
 	// display seconds (not on the e-ink)
@@ -409,7 +416,7 @@ static void draw_train(const train_t * t, int row)
 	} else {
 		snprintf(buf, sizeof(buf),
 			"%02d",
-			delta % 60
+			delta_sec
 		);
 		display.print(buf);
 	}
@@ -424,16 +431,16 @@ static void draw_train(const train_t * t, int row)
 	);
 */
 	if (t->type == 'B')
-		display.drawBitmap(width*row + 24, 8, icon_bus, 24, 24, COLOR1);
+		display.drawBitmap(width*row + 24, 6, icon_bus, 24, 24, COLOR1);
 	else
 	if (t->type == 'T')
-		display.drawBitmap(width*row + 24, 8, icon_train, 24, 24, COLOR1);
+		display.drawBitmap(width*row + 24, 6, icon_train, 24, 24, COLOR1);
 	else
 	if (t->type == 'F')
-		display.drawBitmap(width*row + 24, 8, icon_ferry, 24, 24, COLOR1);
+		display.drawBitmap(width*row + 24, 6, icon_ferry, 24, 24, COLOR1);
 
 	display.setFont(&DinFont12pt7b);
-	display.setCursor(width*row + 48, 27);
+	display.setCursor(width*row + 48, 25);
 	display.print(t->line_number);
 
 	const int dest_len = strlen(t->destination);
@@ -441,6 +448,15 @@ static void draw_train(const train_t * t, int row)
 	display.setFont();
 	display.setCursor((122 - dest_len*5)/2, width*(row+1) - 8);
 	display.print(t->destination);
+
+	// if nothing has changed, we don't need a refresh
+	if (t->last_row == row && t->last_delta == delta_min)
+		return 0;
+
+	t->last_row = row;
+	t->last_delta = delta_min;
+
+	return 1;
 }
  
 void loop()
@@ -471,9 +487,12 @@ void loop()
 
 	train_t * t = train_list;
 	int count = 0;
+	int need_refresh = 0;
+
 	while(t)
 	{
-		draw_train(t, count);
+		if (draw_train(t, count))
+			need_refresh = 1;
 
 		printf("%3d %c %d %-4d: %-3s %c %s\r\n",
 			t->id,
@@ -495,7 +514,8 @@ void loop()
 		}
 	}
 
-	display.display();
+	if (need_refresh)
+		display.display();
 
 /*
 	Serial.println("sending query");
