@@ -19,14 +19,14 @@
 #define med_font DinFont14pt7b
 #define large_font DinFont50pt7b
 #else
-#include "DinBold44pt7b.h"
+#include "DinBold50pt7b.h"
 #include "DinBold12pt7b.h"
 #include "Din10pt7b.h"
 #include "Din7pt7b.h"
 #define small_font Din7pt7b
 #define med_font Din10pt7b
 #define med_bold_font DinBold12pt7b
-#define large_font DinBold44pt7b
+#define large_font DinBold50pt7b
 #endif
 
 
@@ -207,35 +207,38 @@ static int draw_train(train_t * t, int count)
 
 	// ok, this one is going to be displayed...
 	const int cur_row = row++;
-	const int base_x = cur_row * width;
+	const int base_x = cur_row == 0 ? -2 :
+		cur_row == 1 ? 83 :
+		cur_row == 2 ? 167 :
+		cur_row * width;
 
 	display.setRotation(0);
 
 	display.setFont(&large_font);
-	drawtext(base_x + width - 22, 96, RIGHT, "%2d", delta_min);
+	drawtext(base_x + width/2, 107, CENTER, "%d", delta_min);
 
 	// draw the icon and line name at the top left
 	if (t->type == 'B')
-		display.drawBitmap(base_x + 10, 2, icon_bus, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 2, 2, icon_bus, 24, 24, COLOR1);
 	else
 	if (t->type == 'T')
-		display.drawBitmap(base_x + 10, 2, icon_train, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 2, 2, icon_train, 24, 24, COLOR1);
 	else
 	if (t->type == 'F')
-		display.drawBitmap(base_x + 10, 2, icon_ferry, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 2, 2, icon_ferry, 24, 24, COLOR1);
 
 	display.setFont(&med_bold_font);
-	display.setCursor(base_x + 10 + 24, 20);
+	display.setCursor(base_x + 2 + 24, 20);
 	display.print(t->line_number);
 
 	// stop and destination
 	//display.drawFastVLine(base_x + width - 11, 20, 122-20*2-10, COLOR1);
-	display.setRotation(3);
+	//display.setRotation(3);
 	display.setFont(&small_font);
 	//display.setFont();
 
-	drawtext(18, base_x + width - 12, LEFT, "%s>>>", t->stop);
-	drawtext(121, base_x + width - 1, RIGHT, ">>>%s", t->destination);
+	drawtext(base_x + 2, 35, LEFT, "%s>>", t->stop);
+	drawtext(base_x + width - 4, 121, RIGHT, ">>%s", t->destination);
 
 	// if nothing has changed, we don't need a refresh
 	if (t->last_row == cur_row && t->last_delta == delta_min)
@@ -274,8 +277,8 @@ void loop()
 	invert = !invert;
 
 	// draw two lines to separate the three columns
-	//display.drawFastVLine(1*83, 0, 110, COLOR1);
-	//display.drawFastVLine(2*83, 0, 110, COLOR1);
+	display.drawFastVLine(80, 0, 120, COLOR1);
+	display.drawFastVLine(166, 0, 120, COLOR1);
 
 	train_t * t = train_list;
 	int count = 0;
@@ -312,6 +315,7 @@ void loop()
 	display.setRotation(0);
 	//display.setFont(&small_font);
 	display.setFont();
+	if(0)
 	drawtext(250/2, 121-8, CENTER,
 		"%04d-%02d-%02d %02d:%02d:%02d",
 		tm->tm_year + 1900,
