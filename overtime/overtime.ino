@@ -1,4 +1,4 @@
-#include <ArduinoWebsockets.h> // 0.4.8
+#include <ArduinoWebsockets.h> // 0.4.18
 #include <ESP8266WiFi.h>
 #include "time.h"
 #include "Adafruit_EPD.h" // 2.5.3
