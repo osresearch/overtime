@@ -222,6 +222,10 @@ int gvb_parse(String payload)
 			strcmp(vehicle, "Tram") == 0 ? 'T' :
 			'?';
 
+		// fix up some long names
+		if (strcmp(destination, "Centraal Station") == 0)
+			destination = "CS";
+
 		strlcpy(t->destination, destination, sizeof(t->destination));
 		strlcpy(t->line_number, line_number, sizeof(t->line_number));
 		strlcpy(t->departure_time, departure_time, sizeof(t->departure_time));
