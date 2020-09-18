@@ -11,9 +11,24 @@
 
 //#include <Fonts/FreeMonoBold18pt7b.h>
 //#include <Fonts/FreeSans12pt7b.h>
-#include "DinFont60pt7b.h"
-//#include "DinFont36p7.h"
-#include "DinFont12pt7b.h"
+#if 0
+#include "DinFont50pt7b.h"
+#include "DinFont14pt7b.h"
+#include "DinFont8pt7b.h"
+#define small_font DinFont8pt7b
+#define med_font DinFont14pt7b
+#define large_font DinFont50pt7b
+#else
+#include "DinBold44pt7b.h"
+#include "DinBold12pt7b.h"
+#include "Din10pt7b.h"
+#include "Din7pt7b.h"
+#define small_font Din7pt7b
+#define med_font Din10pt7b
+#define med_bold_font DinBold12pt7b
+#define large_font DinBold44pt7b
+#endif
+
 
 #ifdef ESP8266
 #define SD_CS 2
@@ -30,6 +45,9 @@
 /* Uncomment the following line if you are using 2.13" monochrome 250*122 EPD */
 Adafruit_SSD1675 display(250, 122, EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY);
 
+#ifndef ARRIVAL_THRESHOLD
+#define ARRIVAL_THRESHOLD 0
+#endif
 
 extern const char Lato_Bold_21[];
 
@@ -43,306 +61,6 @@ WebsocketsClient ws;
 const unsigned long query_interval_ms = 10 * 1000; // debug
 unsigned long last_query_ms;
 time_t last_update_sec;
-
-
-#if 0
-void
-draw_train(
-	train_t *t,
-	time_t now,
-	OLEDDisplay *display,
-	OLEDDisplayUiState* state,
-	int16_t x,
-	int16_t y
-)
-{
-	char buf[32];
-
-	if (t->status == 'A')
-	{
-		// make it inverse video for this train
-		display->fillRect(x,y+1, 120, 21);
-		display->setColor(INVERSE);
-	}
-
-	//display->setFont(ArialMT_Plain_16); // 24 almost works
-	if (strlen(t->line_number) >= 3)
-		display->setFont(ArialMT_Plain_16);
-	else
-		display->setFont(Lato_Bold_21);
-	display->setTextAlignment(TEXT_ALIGN_RIGHT);
-	display->drawString(x+25, y, t->line_number);
-
-	display->setFont(ArialMT_Plain_10);
-	display->setTextAlignment(TEXT_ALIGN_LEFT);
-	display->drawString(x+30, y, t->destination);
-
-	int delta = t->departure - now - TZ_OFFSET; // fix for UTC to NL
-	if (delta < -120)
-	{
-		// we seem to have forgotten about this one
-		train_remove(t);
-		free(t);
-		return;
-	}
-
-	char neg = ' ';
-	if (delta < 0)
-	{
-		neg = '-';
-		delta = -delta;
-	}
-
-	snprintf(buf, sizeof(buf), "%c%2d:%02d",
-		neg,
-		delta / 60,
-		delta % 60
-	);
-
-	if (t->status == 'A')
-	{
-		display->drawString(x+30, y+10, "ARRIVING");
-	} else {
-		display->drawString(x+30, y+10, buf);
-	}
-
-	if (t->delay_sec != 0)
-	{
-		snprintf(buf, sizeof(buf), "%+4d",
-			t->delay_sec
-		);
-		display->setTextAlignment(TEXT_ALIGN_RIGHT);
-		display->drawString(x+110, y+10, buf);
-	}
-
-	// always set the display back to normal
-	display->setColor(WHITE);
-}
-
-void draw_indicator(OLEDDisplay *display, int i)
-{
-	const int frameCount = 5;
-	//display->drawLine(i*64/frameCount, 63, (i+1)*64/frameCount, 63);
-}
-
-void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	time_t now = time(NULL);
-
-	// round now to the nearest few seconds
-	now = (now / 4) * 4;
-
-	train_t * t = train_list;
-
-	// throw away up to the starting train
-	for(int i = 0 ; t && i < start ; i++, t = t->next)
-		;
-
-	// and draw the next one (side slide)
-	for(int i = 0 ; t && i < 1 ; i++)
-	{
-		train_t * nt = t->next; // t might be deleted
-		draw_train(t, now, display, state, x, y + i*21);
-		t = nt;
-	}
-}
-
-void draw_frame0(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	draw_frame(2, display, state, x, y + 2*21);
-	draw_indicator(display, 1);
-}
-
-void draw_frame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	draw_frame(3, display, state, x, y + 2*21);
-	draw_indicator(display, 2);
-}
-
-void draw_frame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	draw_frame(4, display, state, x, y + 2*21);
-	draw_indicator(display, 3);
-}
-
-void draw_frame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	draw_frame(5, display, state, x, y + 2*21);
-	draw_indicator(display, 4);
-}
-
-void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	// only show the time for a second
-	static unsigned long start_millis;
-
-	if (start_millis == 0)
-		start_millis = millis();
-	else
-	if (millis() - start_millis > 1500
-	&& last_update_sec != 0)
-	{
-		start_millis = 0;
-		ui.nextFrame();
-	}
-
-	draw_indicator(display, 0);
-
-	// just the time
-	struct tm tm;
-	if(!getLocalTime(&tm))
-	{
-		Serial.println("Failed to obtain time");
-		return;
-	}
-
-	display->setTextAlignment(TEXT_ALIGN_CENTER);
-	display->setFont(ArialMT_Plain_16);
-
-	char buf[32];
-
-	snprintf(buf, sizeof(buf),
-		"%02d:%02d:%02d",
-		tm.tm_hour + 1,
-		tm.tm_min,
-		tm.tm_sec
-	);
-
-	display->setFont(ArialMT_Plain_24);
-	display->drawString(x+64-8, y+2*21, buf);
-
-
-	if(last_update_sec == 0)
-	{
-		// if we don't have any updates, display
-		// the date and time
-		snprintf(buf, sizeof(buf),
-			"%04d-%02d-%02d",
-			tm.tm_year+1900,
-			tm.tm_mon+1,
-			tm.tm_mday
-		);
-
-		display->setFont(ArialMT_Plain_16);
-		display->drawString(x+64-8, y+24, buf);
-
-		display->setFont(ArialMT_Plain_10);
-		display->setTextAlignment(TEXT_ALIGN_CENTER);
-		display->drawString(x+64-8, y+4, WiFi.localIP().toString());
-	} else {
-		int delta = time(NULL) - last_update_sec;
-		snprintf(buf, sizeof(buf), "%d", delta);
-
-		display->setFont(ArialMT_Plain_10);
-		display->setTextAlignment(TEXT_ALIGN_LEFT);
-		if (delta > 10)
-			display->drawString(x, y+54, buf);
-
-		// two minutes without a packet, force it
-		if (delta > 120)
-		{
-			last_update_sec = 0;
-			ws.disconnect();
-			ws.connect(ws_url);
-		}
-	}
-}
-
-
-// draw the top two trains
-void draw_two_trains(OLEDDisplay *display, OLEDDisplayUiState* state)
-{
-	draw_frame(0, display, state, 0, 0);
-	draw_frame(1, display, state, 0, 21);
-}
-
-// This array keeps function pointers to all frames
-// frames are the single views that slide in
-//FrameCallback frames[] = { show_time, draw_frame0, draw_frame1, };
-FrameCallback frames[] = {
-	show_time,
-	draw_frame0,
-	draw_frame1,
-	draw_frame2,
-	draw_frame3,
-};
-
-// how many frames are there?
-const int frameCount = sizeof(frames) / sizeof(*frames);
-
-// Overlays are statically drawn on top of a frame eg. a clock
-OverlayCallback overlays[] = { draw_two_trains, };
-const int overlaysCount = sizeof(overlays) / sizeof(*overlays);
-#endif
-
-int Start_WiFi(const char* ssid, const char* password)
-{
-	int connAttempts = 0;
-	Serial.println("\r\nConnecting to: "+String(ssid));
-	WiFi.begin(ssid, password);
-	while (WiFi.status() != WL_CONNECTED ) {
-		delay(500);
-		Serial.print(".");
-		if(connAttempts > 20)
-			return -5;
-		connAttempts++;
-	}
-
-	Serial.println("WiFi connected\r\n");
-	Serial.print("IP address: ");
-	Serial.println(WiFi.localIP());
-
-	display.setCursor(0, 24);
-	display.setTextWrap(true);
-	//display.setTextSize(3);
-        display.print(ssid);
-	display.print(": ");
-	display.print(WiFi.localIP());
-        display.display();
-
-	return 1;
-}
- 
-
-void setup() { 
-  Serial.begin(115200);
-#if 0
-  pinMode(16,OUTPUT);
-  digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
-  delay(50); 
-  digitalWrite(16, HIGH); // while OLED is running, must set GPIO16 in high
-
-  ui.setTargetFPS(30);
-  ui.setIndicatorPosition(RIGHT);
-  ui.setIndicatorDirection(LEFT_RIGHT);
-  //ui.disableAllIndicators();
-
-  ui.setFrameAnimation(SLIDE_LEFT);
-  ui.setFrames(frames, frameCount);
-  ui.setOverlays(overlays, overlaysCount);
-  ui.init();
-  ui.setTimePerTransition(500);
-  ui.setTimePerFrame(1500);
-
-  display.flipScreenVertically();
-#endif
-
-  display.begin();
-  display.setRotation(0);
-  display.clearBuffer();
-
-  display.setCursor(0, 0);
-  display.setTextColor(COLOR1);
-  display.setTextWrap(true);
-  display.print("OVertime starting");
-  display.display();
-
-  Start_WiFi(WIFI_SSID, WIFI_PASSWORD);
-
-  configTime(1, 3600, "pool.ntp.org");
-
-  gvb_setup();
-}
 
 /* 250x122 => 83 wide per entry
    BIG sec  BIG sec  BIG sec
@@ -371,89 +89,159 @@ static const uint8_t icon_ferry[] = {
 0x1f, 0xff, 0xf8, 0x0e, 0x7e, 0x70, 0x0c, 0x3c, 0x30, 0x00, 0x00, 0x00, 0x03, 0xc3, 0xc0, 0x3f, 
 0xff, 0xfc, 0x3e, 0x7e, 0x7c, 0x00, 0x00, 0x00, };
 
-static int draw_train(train_t * t, int row)
-{
-	if (row >= 3)
-		return 0;
 
+int Start_WiFi(const char* ssid, const char* password)
+{
+	int connAttempts = 0;
+	Serial.println("\r\nConnecting to: "+String(ssid));
+	WiFi.begin(ssid, password);
+	while (WiFi.status() != WL_CONNECTED ) {
+		delay(500);
+		Serial.print(".");
+		if(connAttempts > 20)
+			return -5;
+		connAttempts++;
+	}
+
+	Serial.println("WiFi connected\r\n");
+	Serial.print("IP address: ");
+	Serial.println(WiFi.localIP());
+
+	return 1;
+}
+ 
+
+void setup() { 
+  Serial.begin(115200);
+
+  display.begin();
+  display.setRotation(0);
+  display.clearBuffer();
+
+  display.setFont(&med_bold_font);
+  display.setCursor(0, 20);
+  display.setTextColor(COLOR1);
+  display.setTextWrap(true);
+  display.print("OVertime starting");
+  display.drawBitmap(10, 80, icon_bus, 24, 24, COLOR1);
+  display.drawBitmap(50, 80, icon_train, 24, 24, COLOR1);
+  display.drawBitmap(90, 80, icon_ferry, 24, 24, COLOR1);
+  display.drawBitmap(130, 80, icon_bus, 24, 24, COLOR1);
+  display.drawBitmap(170, 80, icon_train, 24, 24, COLOR1);
+  display.drawBitmap(210, 80, icon_ferry, 24, 24, COLOR1);
+
+	display.setCursor(0, 45);
+        display.print(WIFI_SSID);
+	display.print(": ");
+	display.display();
+
+	Start_WiFi(WIFI_SSID, WIFI_PASSWORD);
+
+	display.print(WiFi.localIP());
+        display.display();
+
+
+  configTime(1, 3600, "pool.ntp.org");
+
+  gvb_setup();
+}
+
+#define LEFT	0x00
+#define RIGHT	0x01
+#define CENTER	0x03
+#define BOTTOM	0x00
+#define TOP	0x10
+#define VCENTER	0x30
+
+void drawtext(int x, int y, int center, const char * fmt, ...)
+{
+	char buf[40];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+
+	int16_t x1, y1;
+	uint16_t w, h;
+	display.getTextBounds(buf, 0, 0, &x1, &y1, &w, &h);
+	printf("'%s' %d %d %d %d\r\n", buf, x1, y1, w, h);
+
+	if ((center & 0x0F) == RIGHT)
+		x = x - w;
+	else
+	if ((center & 0x0F) == CENTER)
+		x = x - w/2;
+
+	if ((center & 0xF0) == TOP)
+		y = y + h;
+	else
+	if ((center & 0xF0) == VCENTER)
+		y = y + h/2;
+
+	display.setCursor(x, y);
+	display.write(buf);
+}
+
+static int draw_train(train_t * t, int count)
+{
+	static int row;
+
+	// starting a new display
+	if (count == 0)
+		row = 0;
+
+	const int width = 83; // each time has 83 pixels for its display
 	const time_t now = time(NULL) + TZ_OFFSET;
 	const int delta = t->departure - now;
 	const int delta_min = delta / 60;
 	const int delta_sec = delta % 60;
 
-	char buf[64];
-	const int width = 83;
+	// if the bus is too soon, don't bother displaying it
+	// since the travel time to the stop means we don't care
+	if (delta < ARRIVAL_THRESHOLD)
+		return 0;
+
+	// only show three upcoming trips
+	if (row >= 3)
+		return 0;
+
+	// ok, this one is going to be displayed...
+	const int cur_row = row++;
+	const int base_x = cur_row * width;
 
 	display.setRotation(0);
 
-	if (row > 0)
-		display.drawFastVLine(width*row + 4, 0, 122, COLOR1);
+	display.setFont(&large_font);
+	drawtext(base_x + width - 22, 96, RIGHT, "%2d", delta_min);
 
-	display.setFont(&DinFont60pt7b);
-	if (delta < 0) {
-		buf[0] = '-';
-		buf[1] = '\0';
-	} else {
-		snprintf(buf, sizeof(buf),
-			"%2d",
-			delta_min
-		);
-	}
-
-	int16_t x1, y1;
-	uint16_t w, h;
-	display.getTextBounds(buf, 0, 0, &x1, &y1, &w, &h);
-	display.setCursor(width*(row+1) - w - 12, 114);
-	display.print(buf);
-	//printf("'%s' = %d\n", buf, w);
-
-/*
-	// display seconds (not on the e-ink)
-	display.setFont(&DinFont12pt7b);
-	display.setCursor(width*row + 55, 20);
-	if (delta < 0) {
-		display.print("--");
-	} else {
-		snprintf(buf, sizeof(buf),
-			"%02d",
-			delta_sec
-		);
-		display.print(buf);
-	}
-*/
-
-/*
-	snprintf(buf, sizeof(buf),
-		"%c%s %s",
-		t->type,
-		t->line_number,
-		"" //t->departure_time
-	);
-*/
+	// draw the icon and line name at the top left
 	if (t->type == 'B')
-		display.drawBitmap(width*row + 24, 6, icon_bus, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 10, 2, icon_bus, 24, 24, COLOR1);
 	else
 	if (t->type == 'T')
-		display.drawBitmap(width*row + 24, 6, icon_train, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 10, 2, icon_train, 24, 24, COLOR1);
 	else
 	if (t->type == 'F')
-		display.drawBitmap(width*row + 24, 6, icon_ferry, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 10, 2, icon_ferry, 24, 24, COLOR1);
 
-	display.setFont(&DinFont12pt7b);
-	display.setCursor(width*row + 48, 25);
+	display.setFont(&med_bold_font);
+	display.setCursor(base_x + 10 + 24, 20);
 	display.print(t->line_number);
 
-	const int dest_len = strlen(t->destination);
+	// stop and destination
+	//display.drawFastVLine(base_x + width - 11, 20, 122-20*2-10, COLOR1);
 	display.setRotation(3);
-	display.setFont();
-	display.setCursor((122 - dest_len*5)/2, width*(row+1) - 8);
-	display.print(t->destination);
+	display.setFont(&small_font);
+	//display.setFont();
+
+	drawtext(18, base_x + width - 12, LEFT, "%s>>>", t->stop);
+	drawtext(121, base_x + width - 1, RIGHT, ">>>%s", t->destination);
 
 	// if nothing has changed, we don't need a refresh
-	if (t->last_row == row && t->last_delta == delta_min)
+	if (t->last_row == cur_row && t->last_delta == delta_min)
 		return 0;
 
-	t->last_row = row;
+	t->last_row = cur_row;
 	t->last_delta = delta_min;
 
 	return 1;
@@ -485,6 +273,10 @@ void loop()
 	display.invertDisplay(invert);
 	invert = !invert;
 
+	// draw two lines to separate the three columns
+	//display.drawFastVLine(1*83, 0, 110, COLOR1);
+	//display.drawFastVLine(2*83, 0, 110, COLOR1);
+
 	train_t * t = train_list;
 	int count = 0;
 	int need_refresh = 0;
@@ -513,6 +305,22 @@ void loop()
 			break;
 		}
 	}
+
+	time_t now = time(NULL) + TZ_OFFSET;
+	struct tm *tm = localtime(&now);
+
+	display.setRotation(0);
+	//display.setFont(&small_font);
+	display.setFont();
+	drawtext(250/2, 121-8, CENTER,
+		"%04d-%02d-%02d %02d:%02d:%02d",
+		tm->tm_year + 1900,
+		tm->tm_mon + 1,
+		tm->tm_mday,
+		tm->tm_hour + 1,
+		tm->tm_min,
+		tm->tm_sec
+	);
 
 	if (need_refresh)
 		display.display();
