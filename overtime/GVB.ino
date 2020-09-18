@@ -225,6 +225,7 @@ int gvb_parse(String payload)
 		strlcpy(t->destination, destination, sizeof(t->destination));
 		strlcpy(t->line_number, line_number, sizeof(t->line_number));
 		strlcpy(t->departure_time, departure_time, sizeof(t->departure_time));
+		strlcpy(t->stop, departure["stopName"], sizeof(t->stop));
 	}
 
 	if (status[0] == 'P')

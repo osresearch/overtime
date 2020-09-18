@@ -11,6 +11,7 @@ struct train_t {
 	unsigned long departure;
 	int delay_sec;
 	char line_number[5];
+	char stop[32];
 	char destination[32];
 	char departure_time[16];
 	int last_row; // for tracking display updates
