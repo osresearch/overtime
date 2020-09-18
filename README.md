@@ -1,16 +1,18 @@
-![Image of the public transit tracker on a counter](images/header.jpg)
-
 # OVertime
 
-Track the GVB public transit using their websocket interface and display
-the results on an E-Ink screen.  Shows three upcoming events for a given
-stop.
+![Image of the public transit tracker on a counter](images/header.jpg)
+
+The Arduino sketch tracks the Netherlands public transit
+("Openbaar vervoer" or "OV") on the using the GVB websocket interface
+and display the results on an E-Ink screen.  The small screen shows
+three upcoming events for the configured stops.
 
 To customize it, edit `config.h` to add your WiFi ESSID and password,
 and update the halt numbers with the ones from the https://maps.gvb.nl
 website.
 
 ## Hardware
+![ESP8266 and E-Ink board together](images/hardware.jpg)
 
 * [Adafruit Feather ESP8266](https://www.adafruit.com/product/3046)
 * [Adafruit 2.13" monochrome E-Ink screen](https://www.adafruit.com/product/4195)
