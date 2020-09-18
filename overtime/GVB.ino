@@ -148,6 +148,7 @@ int gvb_parse(String payload)
 	JsonObject departure = doc["calls"][0];
 	int delay_sec = 0;
 	const char * departure_time = departure["liveDepartureAt"];
+	const char * stop = departure["stopName"];
 
 	// if there is no live departure time, don't fetch the delay
 	// and instead just fetch the planned time
@@ -224,12 +225,14 @@ int gvb_parse(String payload)
 
 		// fix up some long names
 		if (strcmp(destination, "Centraal Station") == 0)
-			destination = "CS";
+			destination = "Centraal";
+		if (strcmp(stop, "Centraal Station") == 0)
+			stop = "Centraal";
 
 		strlcpy(t->destination, destination, sizeof(t->destination));
 		strlcpy(t->line_number, line_number, sizeof(t->line_number));
 		strlcpy(t->departure_time, departure_time, sizeof(t->departure_time));
-		strlcpy(t->stop, departure["stopName"], sizeof(t->stop));
+		strlcpy(t->stop, stop, sizeof(t->stop));
 	}
 
 	if (status[0] == 'P')
