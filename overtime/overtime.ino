@@ -226,20 +226,20 @@ static int draw_train(train_t * t, int count)
 
 	// draw the icon and line name at the top left
 	if (t->type == 'B')
-		display.drawBitmap(base_x + 18, 2, icon_bus, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 4, 2, icon_bus, 24, 24, COLOR1);
 	else
 	if (t->type == 'T')
-		display.drawBitmap(base_x + 18, 2, icon_train, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 4, 2, icon_train, 24, 24, COLOR1);
 	else
 	if (t->type == 'F')
-		display.drawBitmap(base_x + 18, 2, icon_ferry, 24, 24, COLOR1);
+		display.drawBitmap(base_x + 4, 2, icon_ferry, 24, 24, COLOR1);
 
 	display.setFont(&med_bold_font);
-	display.setCursor(base_x + 18 + 24, 20);
+	display.setCursor(base_x + 4 + 24, 20);
 	display.print(t->line_number);
 
 	// stop and destination
-#if 1
+#if 0
 	display.drawFastVLine(base_x + width - 7, 20, 60, COLOR1);
 	display.setRotation(3);
 	display.setFont(&small_font);
@@ -249,8 +249,8 @@ static int draw_train(train_t * t, int count)
 	drawtext((122-20)/2 + 20, base_x + width - 1, CENTER, ">> %s", t->destination);
 #else
 	display.setFont(&small_font);
-	drawtext(base_x, 6, LEFT, "%s >>", t->stop);
-	drawtext(base_x + width - 6, 13, RIGHT, ">> %s", t->destination);
+	drawtext(base_x + 4, 31, LEFT, "%s", t->stop);
+	drawtext(base_x + width, 105, RIGHT, ">> %s", t->destination);
 #endif
 
 	// if nothing has changed, we don't need a refresh
