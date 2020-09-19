@@ -41,11 +41,10 @@ WebsocketsClient ws;
 
 #define TZ_OFFSET (1 * 3600)
 
-// query parameters
-//const unsigned long query_interval_ms = 60 * 1000; // once per minute
-const unsigned long query_interval_ms = 10 * 1000; // debug
+// watchdog: if we don't get a packet for this long, reboot
+const unsigned long query_interval_ms = 600 * 1000; // ten minutes
+//const unsigned long query_interval_ms = 10 * 1000; // debug
 unsigned long last_query_ms;
-time_t last_update_sec;
 
 /* 250x122 => 83 wide per entry
    BIG sec  BIG sec  BIG sec
@@ -146,10 +145,10 @@ void setup() {
 	display.print(WiFi.localIP());
         display.display();
 
+	printf("configuring ntp\r\n");
+	configTime(1, 3600, "pool.ntp.org");
 
-  configTime(1, 3600, "pool.ntp.org");
-
-  gvb_setup();
+	gvb_setup();
 }
 
 #define LEFT	0x00
@@ -170,7 +169,7 @@ void drawtext(int x, int y, int center, const char * fmt, ...)
 	int16_t x1, y1;
 	uint16_t w, h;
 	display.getTextBounds(buf, 0, 0, &x1, &y1, &w, &h);
-	printf("'%s' %d %d %d %d\r\n", buf, x1, y1, w, h);
+	//printf("'%s' %d %d %d %d\r\n", buf, x1, y1, w, h);
 
 	if ((center & 0x0F) == RIGHT)
 		x = x - w;
@@ -271,16 +270,20 @@ void loop()
 		return;
 #endif
 
-	gvb_loop();
-
 	unsigned long now_ms = millis();
-	if (now_ms - last_query_ms < query_interval_ms)
+
+	if (!gvb_loop())
 	{
-		//delay(remaining_ms);
+		if (now_ms - last_query_ms < query_interval_ms)
+			return;
+
+		// it has been too long without some sort of update;
+		// re-initiate the wifi and connection and everything
+		setup();
 		return;
 	}
 
-	// attempt a reconnect or send a new query
+	// we have a packet! reset the watchdog
 	last_query_ms = now_ms;
 
 	// dump the list, drawing the first few to the display
@@ -302,13 +305,14 @@ void loop()
 		if (draw_train(t, count))
 			need_refresh = 1;
 
-		printf("%3d %c %d %-4d: %-3s %c %s\r\n",
+		printf("%3d %c %d %-4d: %c %-3s %s -> %s\r\n",
 			t->id,
 			t->status,
 			t->departure,
 			t->delay_sec,
-			t->line_number,
 			t->type,
+			t->line_number,
+			t->stop,
 			t->destination
 		);
 

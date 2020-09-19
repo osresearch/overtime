@@ -11,6 +11,11 @@ static const char ws_url[] = "wss://maps-wss.gvb.nl";
 static const char * const ws_queries[] = { GVB_HALTS };
 static const int ws_num_queries = sizeof(ws_queries)/sizeof(*ws_queries);
 
+static unsigned long last_ping;
+static unsigned long last_pong;
+#define ping_interval 10000
+#define pong_timeout 15000
+
 
 train_t * train_list;
 
@@ -37,6 +42,19 @@ void train_remove(train_t *t)
 
 	t->next = NULL;
 	t->prev = NULL;
+}
+
+void train_clear()
+{
+	train_t * t = train_list;
+	while(t)
+	{
+		train_t * n = t->next;
+		free(t);
+		t = n;
+	}
+
+	train_list = NULL;
 }
 
 train_t * train_create(int id)
@@ -74,26 +92,7 @@ void train_insert(train_t * nt)
 }
 
 
-
-void ws_event(WebsocketsEvent event, String data)
-{
-	last_update_sec = time(NULL);
-
-    if(event == WebsocketsEvent::ConnectionOpened) {
-        Serial.println("Connnection Opened");
-		for(int i = 0 ; i < ws_num_queries ; i++)
-			ws.send(ws_queries[i]);
-    } else if(event == WebsocketsEvent::ConnectionClosed) {
-        Serial.println("Connnection Closed");
-    } else if(event == WebsocketsEvent::GotPing) {
-        Serial.println("Got a Ping!");
-    } else if(event == WebsocketsEvent::GotPong) {
-        Serial.println("Got a Pong!");
-    }
-}
-
-
-int gvb_parse(String payload)
+static int gvb_parse(String payload)
 {
 	//Serial.println(payload);
 
@@ -176,9 +175,8 @@ int gvb_parse(String payload)
 	tm.tm_year -= 1900; // years since 1900
 	tm.tm_mon -= 1; // months go from 0 - 11
 	time_t at = mktime(&tm);
-	int delta = at - last_update_sec;
 
-	printf("%4d %8s %s %+4d: %s %-3s %s %d %d\r\n",
+	printf("%4d %8s %s %+4d: %s %-3s %s %d\r\n",
 		trip_id,
 		status,
 		departure_time,
@@ -186,13 +184,11 @@ int gvb_parse(String payload)
 		vehicle,
 		line_number,
 		destination,
-		delta,
 		at
 	);
 
-	if (departure_time[0] == 'N'
-	|| delta < 0
-	) {
+	if (departure_time[0] == 'N')
+	{
 		// we can't parse a nonexistant time
 		// or this was way in the past
 		Serial.print(payload);
@@ -266,16 +262,17 @@ int gvb_parse(String payload)
 	return 1;
 }
 
-void ws_message(WebsocketsMessage message)
+static int got_message;
+
+static void ws_message(WebsocketsMessage message)
 {
 	String payload = message.data();
 	gvb_parse(payload);
+	got_message = 1;
+}
 
-	static int subscribed;
-	if (subscribed)
-		return;
-	subscribed = 1;
-
+static void gvb_subscribe()
+{
 	char query[32];
 	for(int i = 0 ; i < ws_num_queries ; i++)
 	{
@@ -283,24 +280,68 @@ void ws_message(WebsocketsMessage message)
 			"[5,\"/stops/%s\"]",
 			ws_queries[i]
 		);
-		Serial.println(query);
+		//Serial.println(query);
+
 		ws.send(query);
+	}
+}
+
+static void ws_event(WebsocketsEvent event, String data)
+{
+	if (event == WebsocketsEvent::ConnectionOpened) {
+		Serial.println("Connnection Opened");
+	} else if(event == WebsocketsEvent::ConnectionClosed) {
+		Serial.println("Connnection Closed");
+	} else if(event == WebsocketsEvent::GotPing) {
+		Serial.println("Got a Ping!");
+	} else if(event == WebsocketsEvent::GotPong) {
+		//Serial.println("Got a Pong!");
+		last_pong = millis();
+	} else {
+		printf("ws: event=%d str='%s'\r\n", (int) event, data.c_str());
 	}
 }
 
 
 void gvb_setup(void)
 {
+	// avoid re-triggering on the pong timeout
+	last_pong = millis();
+
+	// throw away any state that we have
+	train_clear();
+
 	Serial.print("attempting connection: ");
 	Serial.println(ws_url);
 	ws.connect(ws_url);
-	//ws.onEvent(ws_event);
 	ws.onMessage(ws_message);
+	ws.onEvent(ws_event);
 	//ws.setReconnectInterval(query_interval_ms);
 }
 
  
-void gvb_loop()
+int gvb_loop()
 {
+	// every so often send a ping to ensure liveliness
+	const unsigned long now_ms = millis();
+
+	if (now_ms - last_ping > ping_interval)
+	{
+		ws.ping();
+		last_ping = now_ms;
+
+		// also resubscribe, just in case
+		gvb_subscribe();
+	}
+
+	if (now_ms - last_pong > pong_timeout)
+	{
+		// connection has gone down? try to restart the
+		// websocket connection
+		gvb_setup();
+	}
+
+	got_message = 0;
 	ws.poll();
+	return got_message;
 }
