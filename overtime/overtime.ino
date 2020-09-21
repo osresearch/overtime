@@ -112,45 +112,6 @@ int Start_WiFi(const char* ssid, const char* password)
 }
  
 
-void setup() { 
-  Serial.begin(115200);
-
-  display.begin();
-  display.setRotation(0);
-  display.clearBuffer();
-
-  display.setFont(&med_bold_font);
-  display.setCursor(0, 20);
-  display.setTextColor(COLOR1);
-  display.setTextWrap(true);
-  display.print("OVertime starting");
-  display.drawBitmap(10, 90, icon_bus, 24, 24, COLOR1);
-  display.drawBitmap(50, 90, icon_train, 24, 24, COLOR1);
-  display.drawBitmap(90, 90, icon_ferry, 24, 24, COLOR1);
-  display.drawBitmap(130, 90, icon_bus, 24, 24, COLOR1);
-  display.drawBitmap(170, 90, icon_train, 24, 24, COLOR1);
-  display.drawBitmap(210, 90, icon_ferry, 24, 24, COLOR1);
-
-	display.setCursor(35, 73);
-	display.print("Data from");
-	display.drawBitmap(120, 55, icon_gvb, 72, 24, COLOR1);
-
-	display.setCursor(0, 45);
-        display.print(WIFI_SSID);
-	display.print(": ");
-	display.display();
-
-	Start_WiFi(WIFI_SSID, WIFI_PASSWORD);
-
-	display.print(WiFi.localIP());
-        display.display();
-
-	printf("configuring ntp\r\n");
-	configTime(1, 3600, "pool.ntp.org");
-
-	gvb_setup();
-}
-
 #define LEFT	0x00
 #define RIGHT	0x01
 #define CENTER	0x03
@@ -187,6 +148,74 @@ void drawtext(int x, int y, int center, const char * fmt, ...)
 	display.write(buf);
 }
 
+static void draw_time(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	struct tm *tm = localtime(&tv.tv_sec);
+	//struct tm *tm = gmtime(&tv.tv_sec);
+
+	display.setRotation(0);
+	//display.setFont(&small_font);
+	display.setFont();
+	drawtext(250/2, 121-8, CENTER,
+		"%04d-%02d-%02d %02d:%02d:%02d",
+		tm->tm_year + 1900,
+		tm->tm_mon + 1,
+		tm->tm_mday,
+		tm->tm_hour + 1,
+		tm->tm_min,
+		tm->tm_sec
+	);
+}
+
+
+void setup() { 
+  Serial.begin(115200);
+
+  display.begin();
+  display.setRotation(0);
+  display.clearBuffer();
+
+  display.setFont(&med_bold_font);
+  display.setCursor(0, 20);
+  display.setTextColor(COLOR1);
+  display.setTextWrap(true);
+  display.print("OVertime starting");
+  display.drawBitmap(10, 90, icon_bus, 24, 24, COLOR1);
+  display.drawBitmap(50, 90, icon_train, 24, 24, COLOR1);
+  display.drawBitmap(90, 90, icon_ferry, 24, 24, COLOR1);
+  display.drawBitmap(130, 90, icon_bus, 24, 24, COLOR1);
+  display.drawBitmap(170, 90, icon_train, 24, 24, COLOR1);
+  display.drawBitmap(210, 90, icon_ferry, 24, 24, COLOR1);
+
+	display.setCursor(35, 73);
+	display.print("Data from");
+	display.drawBitmap(120, 55, icon_gvb, 72, 24, COLOR1);
+
+	display.setCursor(0, 45);
+        display.print(WIFI_SSID);
+	display.print(": ");
+	display.display();
+
+	Start_WiFi(WIFI_SSID, WIFI_PASSWORD);
+
+	display.print(WiFi.localIP());
+
+	printf("configuring ntp\r\n");
+	configTime(1, 3600, "pool.ntp.org");
+
+	// force the timezone to be Amsterdam time
+	setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 3);
+  	tzset();
+
+	draw_time();
+        display.display();
+
+	gvb_setup();
+}
+
+
 static int draw_train(train_t * t, int count)
 {
 	static int row;
@@ -196,7 +225,7 @@ static int draw_train(train_t * t, int count)
 		row = 0;
 
 	const int width = 83; // each time has 83 pixels for its display
-	const time_t now = time(NULL) + TZ_OFFSET;
+	const time_t now = time(NULL); // + TZ_OFFSET;
 	const int delta = t->departure - now;
 	const int delta_min = delta / 60;
 	const int delta_sec = delta % 60;
@@ -322,25 +351,12 @@ void loop()
 		{
 			// something is wrong. flush the whole list
 			printf("ERROR?\r\n");
+			gvb_setup();
 			break;
 		}
 	}
 
-	time_t now = time(NULL) + TZ_OFFSET;
-	struct tm *tm = localtime(&now);
-
-	display.setRotation(0);
-	//display.setFont(&small_font);
-	display.setFont();
-	drawtext(250/2, 121-8, CENTER,
-		"%04d-%02d-%02d %02d:%02d:%02d",
-		tm->tm_year + 1900,
-		tm->tm_mon + 1,
-		tm->tm_mday,
-		tm->tm_hour + 1,
-		tm->tm_min,
-		tm->tm_sec
-	);
+	draw_time();
 
 	if (need_refresh)
 		display.display();

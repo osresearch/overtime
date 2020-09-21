@@ -165,16 +165,17 @@ static int gvb_parse(String payload)
 	if (strcmp(status, "Unknown") == 0)
 		status = "Passed";
 
-	struct tm tm = {};
+	time_t now = time(NULL);
+	struct tm *tm = localtime(&now);
 /*
 	strptime(date, "%Y-%m-%d", &tm);
 	strptime(departure_time, "%H-%M-%S", &tm);
 */
-	sscanf(date, "%d-%d-%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday);
-	sscanf(departure_time, "%d:%d:%d", &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
-	tm.tm_year -= 1900; // years since 1900
-	tm.tm_mon -= 1; // months go from 0 - 11
-	time_t at = mktime(&tm);
+	sscanf(date, "%d-%d-%d", &tm->tm_year, &tm->tm_mon, &tm->tm_mday);
+	sscanf(departure_time, "%d:%d:%d", &tm->tm_hour, &tm->tm_min, &tm->tm_sec);
+	tm->tm_year -= 1900; // years since 1900
+	tm->tm_mon -= 1; // months go from 0 - 11
+	time_t at = mktime(tm);
 
 	printf("%4d %8s %s %+4d: %s %-3s %s %d\r\n",
 		trip_id,
