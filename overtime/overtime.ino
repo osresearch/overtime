@@ -1,6 +1,7 @@
 #include <ArduinoWebsockets.h> // 0.4.18
 #include <ESP8266WiFi.h>
 #include "time.h"
+#include <TZ.h>
 #include "Adafruit_EPD.h" // 2.5.3
 #include "Adafruit_GFX.h" // 1.10.1
 #include "GVB.h"
@@ -153,7 +154,6 @@ static void draw_time(void)
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	struct tm *tm = localtime(&tv.tv_sec);
-	//struct tm *tm = gmtime(&tv.tv_sec);
 
 	display.setRotation(0);
 	//display.setFont(&small_font);
@@ -163,7 +163,7 @@ static void draw_time(void)
 		tm->tm_year + 1900,
 		tm->tm_mon + 1,
 		tm->tm_mday,
-		tm->tm_hour + 1,
+		tm->tm_hour,
 		tm->tm_min,
 		tm->tm_sec
 	);
@@ -203,11 +203,7 @@ void setup() {
 	display.print(WiFi.localIP());
 
 	printf("configuring ntp\r\n");
-	configTime(1, 3600, "pool.ntp.org");
-
-	// force the timezone to be Amsterdam time
-	setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 3);
-  	tzset();
+	configTime(TZ_Europe_Amsterdam, "pool.ntp.org");
 
 	draw_time();
         display.display();
