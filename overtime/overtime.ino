@@ -43,9 +43,12 @@ WebsocketsClient ws;
 #define TZ_OFFSET (1 * 3600)
 
 // watchdog: if we don't get a packet for this long, reboot
-const unsigned long query_interval_ms = 600 * 1000; // ten minutes
-//const unsigned long query_interval_ms = 10 * 1000; // debug
+const unsigned long query_interval_ms = 5 * 60 * 1000; // five minutes
 unsigned long last_query_ms;
+
+// ensure that updates happen at least this often
+const unsigned long draw_interval_ms = 10 * 1000; // ten seconds
+unsigned long last_draw_ms;
 
 /* 250x122 => 83 wide per entry
    BIG sec  BIG sec  BIG sec
@@ -209,6 +212,9 @@ void setup() {
         display.display();
 
 	gvb_setup();
+
+	last_draw_ms = 0;
+	last_query_ms = 0;
 }
 
 
@@ -289,27 +295,29 @@ static int draw_train(train_t * t, int count)
  
 void loop()
 {
-#if 0
-	const int remaining_ms = ui.update();
-	if (remaining_ms < 0)
-		return;
-#endif
+	const unsigned long now_ms = millis();
 
-	unsigned long now_ms = millis();
-
-	if (!gvb_loop())
+	if (gvb_loop())
 	{
-		if (now_ms - last_query_ms < query_interval_ms)
-			return;
-
+		// we have a packet! reset the watchdog
+		last_query_ms = now_ms;
+	} else
+	if (now_ms - last_query_ms > query_interval_ms)
+	{
 		// it has been too long without some sort of update;
 		// re-initiate the wifi and connection and everything
 		setup();
 		return;
+	} else
+	if (now_ms - last_draw_ms > draw_interval_ms)
+	{
+		// update the display anyway
+		last_draw_ms = now_ms;
+	} else {
+		// nothing to do
+		return;
 	}
 
-	// we have a packet! reset the watchdog
-	last_query_ms = now_ms;
 
 	// dump the list, drawing the first few to the display
 	display.clearBuffer();

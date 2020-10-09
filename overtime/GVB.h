@@ -20,4 +20,7 @@ struct train_t {
 
 extern train_t * train_list;
 
+extern void gvb_setup(void);
+extern int gvb_loop(void);
+
 #endif
